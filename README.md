@@ -14,72 +14,75 @@
 
 ---
 
+## Navigation
+
+Five bottom tabs:
+
+| Tab | Purpose |
+| --- | --- |
+| 🏠 **Dashboard** | Customizable widget home screen |
+| 💎 **Legendary** | Legendary crafting planner |
+| ⏱️ **Timers** | World boss & meta event countdowns |
+| 🔧 **Tools** | All other features in a vertical list |
+| ⚙️ **Settings** | API key, widgets, notifications |
+
+---
+
 ## Features
 
 ### 🏠 Dashboard
 
-- Account summary — AP, WvW rank, PvP rank, total playtime hours
-- **Net wealth** — wallet + bank + materials priced at live Trading Post rates
-- **Gold trend** — 7-day sparkline chart built from daily wallet snapshots
-- **Reset countdown** — live timers to daily reset (00:00 UTC) and weekly reset (Mon 07:30 UTC)
-- **Next boss** — next world boss spawn with live countdown
-- **Daily checklist** — manual task tracker + API-driven daily achievement status + Wizard's Vault objectives
+Fully customizable — toggle and reorder widgets from Settings. Available widgets:
 
-### ⏱️ Boss Timers
+- **Account Summary** — AP, WvW rank, PvP rank, total playtime, net wealth
+- **Account Wealth** — wallet + bank + materials priced at live TP rates
+- **Reset Timers** — live countdowns to daily (00:00 UTC) and weekly (Mon 07:30 UTC) reset
+- **World Boss Timer** — active bosses + next spawn countdown
+- **Daily Checklist** — daily/weekly achievement tracker with Wizard's Vault integration
+- **Wizard's Vault** — daily and weekly progress bars with unclaimed objective count
+- **Characters** — roster preview with profession, level, and death count
+- **Mastery Points** — per-region progress (Tyria, Maguuma, Desert, Tundra, Jade, Sky)
+- **TP Delivery Box** — gold and items waiting in your Trading Post delivery
+- **Gold Trend** — 7-day sparkline built from daily wallet snapshots
+
+### 💎 Legendary Crafting
+
+- Search and filter all legendaries by generation, type, and name
+- Full BFS recipe tree resolving all nested components
+- Shopping list grouped by source (craft / forge / timegated / buy / special)
+- Live inventory cross-check across all characters, bank, and material storage
+- Timegate tracker showing days required per gated material
+- Summary tab with map completion, WvW, and time estimates
+- **Wizard's Vault Starter Pack panel** — mark owned precursor, weapon gift, and Gift of Might/Magic to subtract them from the shopping list
+
+### ⏱️ Timers
 
 - Live countdowns for every world boss and meta event
 - Grouped by expansion (Core / LS1–LS4 / HoT / PoF / EoD / SotO / Janthir)
 - Per-stage progress bar for active multi-phase events
 - Waypoint code shown in tap-to-open detail sheet
-- Active event badge count on tab icon
 
-### 🧙 Characters
+### 🔧 Tools
 
-- Full roster with profession icons, level, and race
-- Per-character tabs: **Overview**, **Inventory**, **Equipment**, **Builds**, **Maps**
-- Inventory grid with rarity borders and live TP sell price overlays
-- Equipment viewer with stat rollup per slot
-- Saved build templates with specialization + trait display
-- Quick-nav to Map Completion, Bank, Crafting, and Guides
+Vertical list of all feature screens:
 
-### 🌀 Progression
-
-| Tab | Contents |
+| Tool | Contents |
 | --- | --- |
-| **Fractals** | Fractal level + T1–T4 tier pips · Wizard's Vault fractal objectives · Mastery progress per region · Weekly dungeon path completion · Meta build guide by role |
-| **Strikes** | Weekly clear status per expansion (IBS / EoD / SotO / Janthir) · CM badges · Wizard's Vault weekly strike objectives |
-| **Collections** | Mount skins · Gliders · Titles · Emotes — unlocked count vs. estimated total with progress bars |
-| **Guild** | Guild info + MOTD · Treasury with upgrade progress · Activity log · Member roster with sort |
-
-### ⚔️ Competitive
-
-#### World vs World
-
-- Live match scores with skirmish breakdown
-- Map objectives grouped by type with team colouring
-- WvW rank progression and abilities
-- **Abilities planner** — shows each ability's rank, cost, and highlights what you can afford with your current Badges of Honor balance
-
-#### PvP
-
-- Season standings + division display
-- Rank progression with XP bar
-- Per-profession win/loss breakdown
-- Recent match history
-
-### 💹 Trading Post
-
-- Delivery box with pending coins and items
-- Active buy and sell orders with status
-- Transaction history (buys + sells)
-- **Watchlist** — track any item by ID with custom buy/sell price alert targets
-- **Exchange** — live gem ↔ gold rates refreshed every 5 minutes
+| **Characters** | Full roster · per-character inventory, equipment, builds, map completion |
+| **Trading Post** | Delivery box · buy/sell orders · transaction history · watchlist · gem exchange |
+| **Guides** | 100+ in-game guides (economy, combat mechanics, crafting, exploration, etc.) |
+| **WvW** | Live match scores · map objectives · rank progression · abilities planner |
+| **PvP** | Season standings · rank · per-profession win/loss · match history |
+| **Fractals** | Fractal level · Wizard's Vault objectives · links to community build resources |
+| **Strikes** | Weekly clear tracker per expansion |
+| **Collections** | Mount skins, gliders, titles, emotes — unlocked vs. total |
+| **Guild** | Info · treasury · activity log · member roster |
 
 ### 🔔 Notifications
 
 - Local push alerts before world boss and meta event spawns
 - Per-event and per-expansion enable/disable
-- Configurable lead time: 5 / 10 / 15 / 30 minutes before spawn
+- Configurable lead time: 5 / 10 / 15 / 30 minutes
 
 ---
 
@@ -163,19 +166,6 @@ cd android && ./gradlew assembleRelease
 
 Output: `android/app/build/outputs/apk/release/app-release.apk`
 
-For a signed release build, configure `android/app/build.gradle` with your keystore details (never commit your keystore or `keystore.properties` to source control).
-
----
-
-## Scripts
-
-```bash
-npm run android        # Run on Android device/emulator
-npm run lint           # ESLint (src/)
-npm run type-check     # tsc --noEmit
-npm run build:android  # Assemble release APK
-```
-
 ---
 
 ## Project Structure
@@ -184,12 +174,13 @@ npm run build:android  # Assemble release APK
 src/
 ├── api/           # GW2 API functions per domain
 ├── components/    # Shared UI components + dashboard widgets
-├── constants/     # Theme, world boss schedules, static data
-├── hooks/         # TanStack Query hooks (useGW2.ts)
+├── constants/     # Theme, world boss schedules, guides, static data
+├── data/          # Legendary recipes, timegate data
+├── hooks/         # TanStack Query hooks (useGW2.ts, useTimers.ts)
 ├── screens/       # One file per screen
 ├── services/      # Notification scheduling
-├── store/         # Zustand store
-├── types/         # Shared TypeScript types
+├── store/         # Zustand store (appStore.ts)
+├── types/         # Shared TypeScript types + widget catalog
 └── utils/         # Currency formatting, timer helpers
 ```
 
