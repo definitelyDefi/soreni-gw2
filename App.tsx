@@ -12,25 +12,29 @@ import CharactersScreen from './src/screens/CharactersScreen';
 import CharacterDetailScreen from './src/screens/CharacterDetailScreen';
 import TimersScreen from './src/screens/TimersScreen';
 import InventoryScreen from './src/screens/InventoryScreen';
-import RaidsScreen from './src/screens/RaidsScreen';
 import TradingPostScreen from './src/screens/TradingPostScreen';
 import MapCompletionScreen from './src/screens/MapCompletionScreen';
 import CraftingScreen from './src/screens/CraftingScreen';
+import LegendaryCraftingScreen from './src/screens/LegendaryCraftingScreen';
 import WvWScreen from './src/screens/WvWScreen';
 import PvPScreen from './src/screens/PvPScreen';
 import FractalsScreen from './src/screens/FractalsScreen';
-import GuildScreen from './src/screens/GuildScreen';
 import StrikesScreen from './src/screens/StrikesScreen';
 import CollectionsScreen from './src/screens/CollectionsScreen';
+import GuildScreen from './src/screens/GuildScreen';
 import NotificationsScreen from './src/screens/NotificationsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import GuidesScreen from './src/screens/GuidesScreen';
+import GuideDetailScreen from './src/screens/GuideDetailScreen';
 import {useAppStore} from './src/store/appStore';
 import {colors} from './src/constants/theme';
 import {ErrorBoundary} from './src/components/ui/ErrorBoundary';
 
 const Tab = createBottomTabNavigator();
 const CharactersStack = createNativeStackNavigator();
+const ToolsStack = createNativeStackNavigator();
 const SettingsStack = createNativeStackNavigator();
+const GuidesStack = createNativeStackNavigator();
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -132,50 +136,152 @@ const innerStyles = StyleSheet.create({
   btnTextActive: {color: colors.gold},
 });
 
-// ─── Competitive: WvW + PvP ───────────────────────────────────────────────────
+// ─── Tools: vertical nav list + sub-screens ──────────────────────────────────
 
-const WvWContent = withErrorBoundary(WvWScreen);
-const PvPContent = withErrorBoundary(PvPScreen);
-
-function CompetitiveScreen() {
-  const [tab, setTab] = useState('wvw');
-  const TABS = [
-    {id: 'wvw', label: '⚔️ World vs World'},
-    {id: 'pvp', label: '🏆 PvP'},
-  ];
-  return (
-    <View style={{flex: 1, backgroundColor: colors.bg}}>
-      <InnerTabBar tabs={TABS} active={tab} onChange={setTab} />
-      {tab === 'wvw' ? <WvWContent /> : <PvPContent />}
-    </View>
-  );
-}
-
-// ─── Progression: Fractals + Guild ───────────────────────────────────────────
-
-const FractalsContent = withErrorBoundary(FractalsScreen);
-const GuildContent = withErrorBoundary(GuildScreen);
-const StrikesContent = withErrorBoundary(StrikesScreen);
+const GuildContent       = withErrorBoundary(GuildScreen);
+const TradingPostContent = withErrorBoundary(TradingPostScreen);
+const WvWContent         = withErrorBoundary(WvWScreen);
+const PvPContent         = withErrorBoundary(PvPScreen);
+const FractalsContent    = withErrorBoundary(FractalsScreen);
+const StrikesContent     = withErrorBoundary(StrikesScreen);
 const CollectionsContent = withErrorBoundary(CollectionsScreen);
 
-function ProgressionScreen() {
-  const [tab, setTab] = useState('fractals');
-  const TABS = [
-    {id: 'fractals', label: '🌀 Fractals'},
-    {id: 'strikes', label: '⚔️ Strikes'},
-    {id: 'collections', label: '🎨 Collections'},
-    {id: 'guild', label: '⚜️ Guild'},
-  ];
+type ToolId = 'characters' | 'tradingpost' | 'guides' | 'wvw' | 'pvp' | 'fractals' | 'strikes' | 'collections' | 'guild';
+
+interface ToolEntry {
+  id: ToolId;
+  emoji: string;
+  label: string;
+  description: string;
+  color: string;
+}
+
+const TOOLS: ToolEntry[] = [
+  {id: 'characters',  emoji: '🧙', label: 'Characters',    description: 'Gear, builds, inventory & crafting',  color: '#ce93d8'},
+  {id: 'tradingpost', emoji: '💹', label: 'Trading Post',  description: 'Prices, watchlist & buy/sell orders', color: '#81c784'},
+  {id: 'guides',      emoji: '📖', label: 'Guides',        description: 'Game mechanics, economy & more',      color: '#4fc3f7'},
+  {id: 'wvw',         emoji: '⚔️', label: 'World vs World', description: 'Scores, objectives & rankings',      color: '#ef5350'},
+  {id: 'pvp',         emoji: '🏆', label: 'PvP',           description: 'Ranked stats & seasons',             color: '#ffa726'},
+  {id: 'fractals',    emoji: '🌀', label: 'Fractals',      description: 'Daily fractals & build resources',   color: '#26c6da'},
+  {id: 'strikes',     emoji: '⚡', label: 'Strike Missions', description: 'Weekly strike clears',             color: '#ffca28'},
+  {id: 'collections', emoji: '🎨', label: 'Collections',   description: 'Skins, minis & wardrobe',            color: '#ab47bc'},
+  {id: 'guild',       emoji: '⚜️', label: 'Guild',         description: 'Treasury, log & members',           color: '#c8972b'},
+];
+
+function ToolsScreen() {
+  const [active, setActive] = useState<ToolId | null>(null);
+
+  if (active !== null) {
+    const tool = TOOLS.find(t => t.id === active)!;
+    return (
+      <View style={{flex: 1, backgroundColor: colors.bg}}>
+        {/* Sub-screen header */}
+        <View style={toolStyles.subHeader}>
+          <TouchableOpacity style={toolStyles.backBtn} onPress={() => setActive(null)}>
+            <Text style={toolStyles.backArrow}>‹</Text>
+            <Text style={toolStyles.backLabel}>Tools</Text>
+          </TouchableOpacity>
+          <Text style={[toolStyles.subTitle, {color: tool.color}]}>
+            {tool.emoji} {tool.label}
+          </Text>
+          <View style={{width: 64}} />
+        </View>
+        <View style={{flex: 1}}>
+          {active === 'characters'  && <SCharactersInner />}
+          {active === 'tradingpost' && <TradingPostContent />}
+          {active === 'guides'      && <SGuidesInner />}
+          {active === 'wvw'         && <WvWContent />}
+          {active === 'pvp'         && <PvPContent />}
+          {active === 'fractals'    && <FractalsContent />}
+          {active === 'strikes'     && <StrikesContent />}
+          {active === 'collections' && <CollectionsContent />}
+          {active === 'guild'       && <GuildContent />}
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <View style={{flex: 1, backgroundColor: colors.bg}}>
-      <InnerTabBar tabs={TABS} active={tab} onChange={setTab} />
-      {tab === 'fractals' && <FractalsContent />}
-      {tab === 'strikes' && <StrikesContent />}
-      {tab === 'collections' && <CollectionsContent />}
-      {tab === 'guild' && <GuildContent />}
-    </View>
+    <ScrollView style={{flex: 1, backgroundColor: colors.bg}} contentContainerStyle={toolStyles.listContent}>
+      <Text style={toolStyles.listTitle}>Tools</Text>
+      {TOOLS.map((tool, i) => (
+        <TouchableOpacity
+          key={tool.id}
+          style={[toolStyles.row, i === TOOLS.length - 1 && toolStyles.rowLast]}
+          onPress={() => setActive(tool.id)}
+          activeOpacity={0.7}>
+          <View style={[toolStyles.iconWrap, {backgroundColor: tool.color + '18', borderColor: tool.color + '44'}]}>
+            <Text style={toolStyles.iconEmoji}>{tool.emoji}</Text>
+          </View>
+          <View style={toolStyles.rowInfo}>
+            <Text style={toolStyles.rowLabel}>{tool.label}</Text>
+            <Text style={toolStyles.rowDesc}>{tool.description}</Text>
+          </View>
+          <Text style={[toolStyles.rowArrow, {color: tool.color}]}>›</Text>
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
   );
 }
+
+const toolStyles = StyleSheet.create({
+  listContent: {
+    padding: 16,
+    gap: 8,
+  },
+  listTitle: {
+    color: '#c8972b',
+    fontSize: 22,
+    fontWeight: '800',
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#12121e',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#2a2a40',
+    padding: 14,
+    gap: 14,
+  },
+  rowLast: {},
+  iconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  iconEmoji: {fontSize: 24},
+  rowInfo: {flex: 1, gap: 2},
+  rowLabel: {color: '#e8e0d0', fontSize: 15, fontWeight: '700'},
+  rowDesc:  {color: '#6a6070', fontSize: 12, lineHeight: 17},
+  rowArrow: {fontSize: 26, fontWeight: '300', lineHeight: 30},
+  // sub-screen header
+  subHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#0d0d15',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a2a40',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    width: 64,
+  },
+  backArrow: {color: '#c8972b', fontSize: 26, lineHeight: 28, fontWeight: '300'},
+  backLabel: {color: '#c8972b', fontSize: 14, fontWeight: '600'},
+  subTitle:  {fontSize: 15, fontWeight: '700'},
+});
 
 // ─── Characters stack (includes Crafting) ────────────────────────────────────
 
@@ -212,12 +318,35 @@ function CharactersNavigator() {
         component={CraftingScreen}
         options={{title: '⚒️ Crafting'}}
       />
-      <CharactersStack.Screen
-        name="Guides"
-        component={RaidsScreen}
-        options={{title: '📖 Guides & KP Lookup'}}
-      />
     </CharactersStack.Navigator>
+  );
+}
+
+// ─── Guides stack ────────────────────────────────────────────────────────────
+
+function GuidesNavigator() {
+  return (
+    <GuidesStack.Navigator
+      screenOptions={{
+        headerStyle: {backgroundColor: colors.bg},
+        headerTitleStyle: {color: '#e8e0d0', fontWeight: '700'},
+        headerTintColor: '#c8972b',
+      }}>
+      <GuidesStack.Screen
+        name="GuidesList"
+        component={GuidesScreen}
+        options={{title: '📖 Guides'}}
+      />
+      <GuidesStack.Screen
+        name="GuideDetail"
+        component={GuideDetailScreen}
+        options={({route}: any) => ({
+          title: route.params?.guideId
+            ? (require('./src/constants/guides').GUIDES.find((g: any) => g.id === route.params.guideId)?.title ?? 'Guide')
+            : 'Guide',
+        })}
+      />
+    </GuidesStack.Navigator>
   );
 }
 
@@ -248,11 +377,11 @@ function SettingsNavigator() {
 // ─── Wrapped screens ─────────────────────────────────────────────────────────
 
 const SDashboard = withErrorBoundary(DashboardScreen);
-const SCharacters = withErrorBoundary(CharactersNavigator);
+const SCharactersInner = withErrorBoundary(CharactersNavigator);
+const SGuidesInner = withErrorBoundary(GuidesNavigator);
+const SLegendary = withErrorBoundary(LegendaryCraftingScreen);
 const STimers = withErrorBoundary(TimersScreen);
-const SCompetitive = withErrorBoundary(CompetitiveScreen);
-const SProgression = withErrorBoundary(ProgressionScreen);
-const STradingPost = withErrorBoundary(TradingPostScreen);
+const STools = withErrorBoundary(ToolsScreen);
 const SSettings = withErrorBoundary(SettingsNavigator);
 
 // ─── App ─────────────────────────────────────────────────────────────────────
@@ -317,11 +446,11 @@ export default function App() {
               }}
             />
             <Tab.Screen
-              name="Characters"
-              component={SCharacters}
+              name="Legendary"
+              component={SLegendary}
               options={{
-                headerShown: false,
-                tabBarIcon: ({focused}) => <TabIcon emoji="🧙" focused={focused} />,
+                headerTitle: '💎 Legendary Crafting',
+                tabBarIcon: ({focused}) => <TabIcon emoji="💎" focused={focused} />,
               }}
             />
             <Tab.Screen
@@ -332,27 +461,11 @@ export default function App() {
               }}
             />
             <Tab.Screen
-              name="Competitive"
-              component={SCompetitive}
+              name="Tools"
+              component={STools}
               options={{
-                headerTitle: '⚔️ Competitive',
-                tabBarIcon: ({focused}) => <TabIcon emoji="⚔️" focused={focused} />,
-              }}
-            />
-            <Tab.Screen
-              name="Progression"
-              component={SProgression}
-              options={{
-                headerTitle: '🌀 Progression',
-                tabBarIcon: ({focused}) => <TabIcon emoji="🌀" focused={focused} />,
-              }}
-            />
-            <Tab.Screen
-              name="TradingPost"
-              component={STradingPost}
-              options={{
-                headerTitle: '💹 Trading Post',
-                tabBarIcon: ({focused}) => <TabIcon emoji="💹" focused={focused} />,
+                headerTitle: '🔧 Tools',
+                tabBarIcon: ({focused}) => <TabIcon emoji="🔧" focused={focused} />,
               }}
             />
             <Tab.Screen

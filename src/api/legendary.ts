@@ -71,6 +71,7 @@ export interface LegendaryPlan {
   mysticCloverCount: number;
   needsMapCompletion: boolean;
   needsWvW: boolean;
+  dataWarnings: string[];      // non-fatal fetch failures the UI should surface
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -91,6 +92,8 @@ export async function buildLegendaryPlan(
   legendaryItemId: number,
   inventory: Map<number, number>,
 ): Promise<LegendaryPlan> {
+  const dataWarnings: string[] = [];
+
   // ── Phase 1: BFS to discover all item IDs in the recipe tree ──────────────
   const recipeSearchCache = new Map<number, number[]>();  // itemId → recipeIds
   const recipeDetailsCache = new Map<number, any>();       // recipeId → recipe obj
@@ -134,7 +137,12 @@ export async function buildLegendaryPlan(
     if (newRecipeIds.length > 0) {
       const batches = chunk(newRecipeIds, 200);
       const fetched = await Promise.all(
-        batches.map(b => getRecipes(b).catch(() => [])),
+        batches.map(b =>
+          getRecipes(b).catch(() => {
+            dataWarnings.push('Some recipe data could not be loaded — ingredient list may be incomplete.');
+            return [];
+          }),
+        ),
       );
       for (const recipe of fetched.flat()) {
         recipeDetailsCache.set(recipe.id, recipe);
@@ -179,7 +187,12 @@ export async function buildLegendaryPlan(
   // ── Phase 2: Batch-fetch all item details ─────────────────────────────────
   const allIdsBatches = chunk([...allItemIds], 200);
   const itemResults = await Promise.all(
-    allIdsBatches.map(b => getItems(b).catch(() => [])),
+    allIdsBatches.map(b =>
+      getItems(b).catch(() => {
+        dataWarnings.push('Some item details could not be loaded — item names or icons may be missing.');
+        return [];
+      }),
+    ),
   );
   for (const item of itemResults.flat()) {
     itemDetailsCache.set(item.id, item);
@@ -330,7 +343,10 @@ export async function buildLegendaryPlan(
 
   // ── Phase 5: Fetch TP prices for all base materials ───────────────────────
   const leafIds = [...flatMap.keys()];
-  const prices = await getPrices(leafIds).catch(() => []);
+  const prices = await getPrices(leafIds).catch(() => {
+    dataWarnings.push('Trading Post prices could not be loaded — all costs are shown as 0. Try refreshing.');
+    return [];
+  });
   const priceMap = new Map<number, any>(prices.map((p: any) => [p.id, p]));
 
   // ── Phase 6: Build FlatMaterial list ─────────────────────────────────────
@@ -417,6 +433,7 @@ export async function buildLegendaryPlan(
     mysticCloverCount,
     needsMapCompletion,
     needsWvW,
+    dataWarnings: [...new Set(dataWarnings)],
   };
 }
 
@@ -469,7 +486,7 @@ export async function aggregateAllInventory(): Promise<Map<number, number>> {
 export async function buildCombinedPlan(
   legendaryItemIds: number[],
   inventory: Map<number, number>,
-): Promise<{plans: LegendaryPlan[]; combined: FlatMaterial[]; totalCost: number; maxDays: number}> {
+): Promise<{plans: LegendaryPlan[]; combined: FlatMaterial[]; totalCost: number; maxDays: number; dataWarnings: string[]}> {
   const plans = await Promise.all(
     legendaryItemIds.map(id => buildLegendaryPlan(id, inventory)),
   );
@@ -515,5 +532,6 @@ export async function buildCombinedPlan(
     .filter(m => m.isTimegated)
     .reduce((mx, m) => Math.max(mx, m.daysRequired), 0);
 
-  return {plans, combined, totalCost, maxDays};
+  const dataWarnings = [...new Set(plans.flatMap(p => p.dataWarnings))];
+  return {plans, combined, totalCost, maxDays, dataWarnings};
 }

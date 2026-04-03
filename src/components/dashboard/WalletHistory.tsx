@@ -1,6 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {View, Text, StyleSheet} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Card from '../ui/Card';
 import GoldDisplay from '../ui/GoldDisplay';
 import {useWallet} from '../../hooks/useGW2';
 import {useAppStore} from '../../store/appStore';
@@ -8,8 +9,8 @@ import {CURRENCY_IDS} from '../../api/account';
 import {colors, spacing, fontSize, radius} from '../../constants/theme';
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const BAR_MAX_HEIGHT = 48;
 const BAR_MIN_HEIGHT = 4;
-const BAR_MAX_HEIGHT = 40;
 const HISTORY_DAYS = 7;
 
 function getDateKey(date: Date): string {
@@ -69,30 +70,32 @@ export default function WalletHistory() {
     load();
   }, [wallet]);
 
+  if (!settings.apiKey) return null;
+
   const currentGold =
     wallet?.find(w => w.id === CURRENCY_IDS.GOLD)?.value ?? null;
 
-  // Calculate yesterday vs today net change
+  const defined = history.filter((v): v is number => v !== null);
+  const hasData = defined.length > 0;
+
+  // Net change vs yesterday
   const todayVal = history[HISTORY_DAYS - 1];
   const yesterdayVal = history[HISTORY_DAYS - 2];
   const netChange =
     todayVal != null && yesterdayVal != null ? todayVal - yesterdayVal : null;
 
-  // Sparkline bar heights
-  const defined = history.filter(v => v != null) as number[];
-  const maxVal = defined.length > 0 ? Math.max(...defined) : 1;
-  const barHeights = history.map(v => {
-    if (v == null || maxVal === 0) return BAR_MIN_HEIGHT;
-    return Math.max(
-      BAR_MIN_HEIGHT,
-      Math.round((v / maxVal) * BAR_MAX_HEIGHT),
-    );
+  // Bar heights — scale against max; today's bar always at least 8px so it's visible
+  const maxVal = hasData ? Math.max(...defined) : 1;
+  const barHeights = history.map((v, i) => {
+    if (!hasData) return BAR_MIN_HEIGHT;
+    if (v == null) return BAR_MIN_HEIGHT;
+    if (maxVal === 0) return BAR_MIN_HEIGHT;
+    const scaled = Math.round((v / maxVal) * BAR_MAX_HEIGHT);
+    return Math.max(i === HISTORY_DAYS - 1 ? 8 : BAR_MIN_HEIGHT, scaled);
   });
 
-  if (!settings.apiKey) return null;
-
   return (
-    <View style={styles.container}>
+    <Card style={styles.card}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>📈 Gold Trend</Text>
@@ -111,36 +114,40 @@ export default function WalletHistory() {
         </Text>
       )}
 
-      {/* Sparkline */}
-      <View style={styles.sparkline}>
-        {barHeights.map((h, i) => (
-          <View key={i} style={styles.barCol}>
-            <View style={styles.barWrapper}>
-              <View
-                style={[
-                  styles.bar,
-                  {height: h},
-                  history[i] == null ? styles.barMissing : styles.barFilled,
-                  i === HISTORY_DAYS - 1 && styles.barToday,
-                ]}
-              />
+      {/* Sparkline or placeholder */}
+      {!hasData ? (
+        <View style={styles.placeholder}>
+          <Text style={styles.placeholderTxt}>
+            Your gold history will appear here after your first daily session.
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.sparkline}>
+          {barHeights.map((h, i) => (
+            <View key={i} style={styles.barCol}>
+              <View style={styles.barWrapper}>
+                <View
+                  style={[
+                    styles.bar,
+                    {height: h},
+                    history[i] == null ? styles.barMissing : styles.barFilled,
+                    i === HISTORY_DAYS - 1 && styles.barToday,
+                  ]}
+                />
+              </View>
+              <Text style={[styles.dayLabel, i === HISTORY_DAYS - 1 && styles.dayLabelToday]}>
+                {labels[i]}
+              </Text>
             </View>
-            <Text style={styles.dayLabel}>{labels[i]}</Text>
-          </View>
-        ))}
-      </View>
-    </View>
+          ))}
+        </View>
+      )}
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
+  card: {marginBottom: spacing.md, gap: spacing.sm},
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -155,11 +162,17 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     fontWeight: '700',
   },
-  netChangePos: {
-    color: colors.green,
+  netChangePos: {color: colors.green},
+  netChangeNeg: {color: colors.red},
+  placeholder: {
+    paddingVertical: spacing.md,
+    alignItems: 'center',
   },
-  netChangeNeg: {
-    color: colors.red,
+  placeholderTxt: {
+    color: colors.textMuted,
+    fontSize: fontSize.xs,
+    textAlign: 'center',
+    lineHeight: 18,
   },
   sparkline: {
     flexDirection: 'row',
@@ -170,28 +183,33 @@ const styles = StyleSheet.create({
   barCol: {
     flex: 1,
     alignItems: 'center',
-    gap: 3,
+    gap: 4,
   },
   barWrapper: {
     height: BAR_MAX_HEIGHT,
     justifyContent: 'flex-end',
+    width: '100%',
   },
   bar: {
     width: '100%',
     borderRadius: radius.sm,
   },
   barFilled: {
-    backgroundColor: colors.gold + 'bb',
+    backgroundColor: colors.gold + '88',
   },
   barMissing: {
     backgroundColor: colors.border,
+    opacity: 0.5,
   },
   barToday: {
     backgroundColor: colors.gold,
   },
   dayLabel: {
     color: colors.textMuted,
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '600',
+  },
+  dayLabelToday: {
+    color: colors.gold,
   },
 });

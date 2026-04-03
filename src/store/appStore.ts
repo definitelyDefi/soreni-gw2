@@ -1,6 +1,6 @@
 import {create} from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {AppSettings} from '../types';
+import {AppSettings, ALL_DAILY_CATEGORIES, ALL_WEEKLY_CATEGORIES, DailyCategory, WeeklyCategory, WidgetId, DEFAULT_WIDGETS} from '../types';
 import {WORLD_BOSSES, META_EVENTS} from '../constants/worldBosses';
 
 export const ALL_EVENT_IDS: string[] = [
@@ -25,6 +25,9 @@ interface AppState {
   setNotifications: (enabled: boolean) => Promise<void>;
   setNotifyMinutesBefore: (minutes: number) => Promise<void>;
   setNotifyEventIds: (ids: string[]) => Promise<void>;
+  setDailyCategories: (cats: DailyCategory[]) => Promise<void>;
+  setWeeklyCategories: (cats: WeeklyCategory[]) => Promise<void>;
+  setDashboardWidgets: (widgets: WidgetId[]) => Promise<void>;
   loadSettings: () => Promise<void>;
   addToWatchlist: (item: TPWatchlistItem) => Promise<void>;
   updateWatchlistItem: (itemId: number, patch: Partial<TPWatchlistItem>) => Promise<void>;
@@ -37,6 +40,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     notifications: true,
     notifyMinutesBefore: 15,
     notifyEventIds: ALL_EVENT_IDS,
+    dailyCategories: ALL_DAILY_CATEGORIES,
+    weeklyCategories: ALL_WEEKLY_CATEGORIES,
+    dashboardWidgets: DEFAULT_WIDGETS,
   },
   isLoading: false,
   tpWatchlist: [],
@@ -78,16 +84,34 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  setDailyCategories: async (cats: DailyCategory[]) => {
+    set(state => ({settings: {...state.settings, dailyCategories: cats}}));
+    await AsyncStorage.setItem('dailyCategories', JSON.stringify(cats));
+  },
+
+  setWeeklyCategories: async (cats: WeeklyCategory[]) => {
+    set(state => ({settings: {...state.settings, weeklyCategories: cats}}));
+    await AsyncStorage.setItem('weeklyCategories', JSON.stringify(cats));
+  },
+
+  setDashboardWidgets: async (widgets: WidgetId[]) => {
+    set(state => ({settings: {...state.settings, dashboardWidgets: widgets}}));
+    await AsyncStorage.setItem('dashboardWidgets', JSON.stringify(widgets));
+  },
+
   loadSettings: async () => {
     set({isLoading: true});
     try {
-      const [apiKey, notifications, notifyMinutesBefore, notifyEventIds, tpWatchlist] =
+      const [apiKey, notifications, notifyMinutesBefore, notifyEventIds, dailyCategories, weeklyCategories, tpWatchlist, dashboardWidgets] =
         await Promise.all([
           AsyncStorage.getItem('apiKey'),
           AsyncStorage.getItem('notifications'),
           AsyncStorage.getItem('notifyMinutesBefore'),
           AsyncStorage.getItem('notifyEventIds'),
+          AsyncStorage.getItem('dailyCategories'),
+          AsyncStorage.getItem('weeklyCategories'),
           AsyncStorage.getItem('tpWatchlist'),
+          AsyncStorage.getItem('dashboardWidgets'),
         ]);
       set(state => ({
         settings: {
@@ -96,6 +120,9 @@ export const useAppStore = create<AppState>((set, get) => ({
           notifications: notifications !== null ? JSON.parse(notifications) : true,
           notifyMinutesBefore: notifyMinutesBefore ? parseInt(notifyMinutesBefore) : 15,
           notifyEventIds: notifyEventIds ? JSON.parse(notifyEventIds) : ALL_EVENT_IDS,
+          dailyCategories: dailyCategories ? JSON.parse(dailyCategories) : ALL_DAILY_CATEGORIES,
+          weeklyCategories: weeklyCategories ? JSON.parse(weeklyCategories) : ALL_WEEKLY_CATEGORIES,
+          dashboardWidgets: dashboardWidgets ? JSON.parse(dashboardWidgets) : DEFAULT_WIDGETS,
         },
         tpWatchlist: tpWatchlist ? JSON.parse(tpWatchlist) : [],
       }));

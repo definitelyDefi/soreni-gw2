@@ -105,7 +105,7 @@ export async function getWvWMatchByWorld(worldId: number): Promise<WvWMatch> {
 
 export async function getWvWWorlds(ids?: number[]): Promise<WvWWorld[]> {
   const params = ids ? {ids: ids.join(',')} : {ids: 'all'};
-  const res = await gw2Api.get('/wvw/worlds', {params});
+  const res = await gw2Api.get('/worlds', {params});
   return res.data;
 }
 

@@ -13,6 +13,9 @@ import {
   useAccountMasteries,
   useAccount,
   useDungeons,
+  useDailyAchievements,
+  useAccountAchievements,
+  useAchievementDefs,
 } from '../hooks/useGW2';
 import {useAppStore} from '../store/appStore';
 import Card from '../components/ui/Card';
@@ -74,15 +77,11 @@ const DUNGEONS = [
   ]},
 ];
 
-const FRACTAL_BUILDS = [
-  { role: 'Healer', profession: 'Druid', elite: 'Druid', spec: 'Guardian/Druid', description: 'Heal Alacrity. Provide alacrity, healing, and boon support.', traits: ['Ancient Seeds', 'Verdant Etching', 'Natural Mender'], weapons: 'Staff + Warhorn/Axe', food: 'Cilantro Lime Sous-Vide Steak', color: '#40c870' },
-  { role: 'Healer', profession: 'Specter', elite: 'Specter', spec: 'Thief/Specter', description: 'Heal Alacrity via Specter shroud. High sustain in fractals.', traits: ['Consume Shadows', 'Traversing Dusk', 'Shadestep'], weapons: 'Scepter/Pistol + Shortbow', food: 'Plate of Sesame Chicken', color: '#40c870' },
-  { role: 'Quickness', profession: 'Scrapper', elite: 'Scrapper', spec: 'Engineer/Scrapper', description: 'Quickness DPS. Provide quickness while dealing damage.', traits: ['Gyroscopic Acceleration', 'Perfectly Weighted', 'Adaptive Armor'], weapons: 'Hammer', food: 'Rare Veggie Pizza', color: '#c8972b' },
-  { role: 'Quickness', profession: 'Willbender', elite: 'Willbender', spec: 'Guardian/Willbender', description: 'Quickness DPS. Reliable quickness with high damage.', traits: ['Lethal Tempo', "Tyrant's Momentum", 'Vision of Rage'], weapons: 'Sword/Torch + Sword/Focus', food: 'Plate of Truffle Steak', color: '#c8972b' },
-  { role: 'Alacrity', profession: 'Renegade', elite: 'Renegade', spec: 'Revenant/Renegade', description: 'Alacrity DPS. Core of fractal groups for decades.', traits: ['Righteous Rebel', 'Lasting Legacy', 'Brutal Momentum'], weapons: 'Shortbow + Sword/Axe', food: 'Plate of Beef Rendang', color: '#9060c0' },
-  { role: 'DPS', profession: 'Weaver', elite: 'Weaver', spec: 'Elementalist/Weaver', description: 'Top melee DPS. Complex rotation but exceptional damage.', traits: ['Superior Elements', 'Masters Force', 'Bolt to the Heart'], weapons: 'Sword/Dagger', food: 'Bowl of Poultry Satay', color: '#c84040' },
-  { role: 'DPS', profession: 'Virtuoso', elite: 'Virtuoso', spec: 'Mesmer/Virtuoso', description: 'Strong ranged DPS. Good for power builds.', traits: ['Deadly Blade', 'Jagged Mind', 'Phantasmal Blades'], weapons: 'Dagger/Focus + Sword/Focus', food: 'Bowl of Poultry Satay', color: '#c84040' },
-  { role: 'DPS', profession: 'Deadeye', elite: 'Deadeye', spec: 'Thief/Deadeye', description: 'Ranged DPS. Excellent for stationary bosses.', traits: ["Death's Retreat", 'Maleficent Seven', 'Be Quick or Be Killed'], weapons: 'Rifle', food: 'Bowl of Poultry Satay', color: '#c84040' },
+const FRACTAL_BUILD_SOURCES = [
+  {name: 'Discretize', url: 'discretize.eu', note: 'Primary fractal build & guide resource — T4 and CM optimised'},
+  {name: 'Snowcrows', url: 'snowcrows.com', note: 'Raid & fractal DPS benchmarks, rotation guides'},
+  {name: 'Hardstuck', url: 'hardstuck.gg', note: 'Beginner-friendly builds, tier lists'},
+  {name: 'MetaBattle', url: 'metabattle.com', note: 'Community voted builds for all game modes'},
 ];
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
@@ -170,31 +169,79 @@ function DungeonCard({dungeon, completedSet}: {
   );
 }
 
-function BuildCard({build}: {build: typeof FRACTAL_BUILDS[number]}) {
+function BuildSourceCard({source}: {source: typeof FRACTAL_BUILD_SOURCES[number]}) {
   return (
     <Card style={styles.buildCard} padded>
-      <View style={styles.buildHeader}>
-        <View style={[styles.roleBadge, {backgroundColor: build.color + '33', borderColor: build.color}]}>
-          <Text style={[styles.roleBadgeText, {color: build.color}]}>{build.role}</Text>
-        </View>
-        <Text style={styles.buildSpec}>{build.spec}</Text>
+      <Text style={styles.buildSpec}>{source.name}</Text>
+      <Text style={styles.buildDescription}>{source.note}</Text>
+      <Text style={styles.buildUrl}>{source.url}</Text>
+    </Card>
+  );
+}
+
+// ─── Fractal Daily Achievements ──────────────────────────────────────────────
+
+function FractalDailiesCard() {
+  const {data: dailyData, isLoading: dailyLoading} = useDailyAchievements();
+  const {data: accountAchievements} = useAccountAchievements();
+
+  const fractalIds = useMemo(() => {
+    return (dailyData?.fractals ?? []).map((a: {id: number}) => a.id);
+  }, [dailyData]);
+
+  const {data: defs, isLoading: defsLoading} = useAchievementDefs(fractalIds);
+
+  const defMap = useMemo(() => {
+    const m = new Map<number, {name: string; requirement: string}>();
+    defs?.forEach(d => m.set(d.id, {name: d.name, requirement: d.requirement}));
+    return m;
+  }, [defs]);
+
+  const doneSet = useMemo(() => {
+    const s = new Set<number>();
+    accountAchievements?.forEach(a => { if (a.done) s.add(a.id); });
+    return s;
+  }, [accountAchievements]);
+
+  if (dailyLoading || defsLoading) {
+    return (
+      <Card style={styles.card} padded>
+        <Text style={styles.sectionTitle}>📜 Daily Fractal Achievements</Text>
+        <ActivityIndicator color={colors.gold} style={styles.loader} />
+      </Card>
+    );
+  }
+  if (fractalIds.length === 0) return null;
+
+  const doneCount = fractalIds.filter(id => doneSet.has(id)).length;
+
+  return (
+    <Card style={styles.card} padded>
+      <View style={styles.sectionHeaderRow}>
+        <Text style={styles.sectionTitle}>📜 Daily Fractal Achievements</Text>
+        <Text style={[styles.dailyCount, {color: doneCount === fractalIds.length ? colors.green : colors.gold}]}>
+          {doneCount}/{fractalIds.length}
+        </Text>
       </View>
-      <Text style={styles.buildDescription}>{build.description}</Text>
-      <View style={styles.buildDetail}>
-        <Text style={styles.buildDetailLabel}>Weapons</Text>
-        <Text style={styles.buildDetailValue}>{build.weapons}</Text>
-      </View>
-      <View style={styles.buildDetail}>
-        <Text style={styles.buildDetailLabel}>Food</Text>
-        <Text style={styles.buildDetailValue}>{build.food}</Text>
-      </View>
-      <View style={styles.buildTraits}>
-        {build.traits.map(trait => (
-          <View key={trait} style={styles.traitChip}>
-            <Text style={styles.traitChipText}>{trait}</Text>
+      {fractalIds.map(id => {
+        const done = doneSet.has(id);
+        const def = defMap.get(id);
+        const name = def?.name ?? `Achievement #${id}`;
+        const req = def?.requirement ?? '';
+        return (
+          <View key={id} style={[styles.dailyRow, done && styles.dailyRowDone]}>
+            <Text style={styles.dailyDot}>{done ? '✅' : '◯'}</Text>
+            <View style={{flex: 1}}>
+              <Text style={[styles.dailyName, done && styles.dailyNameDone]} numberOfLines={1}>
+                {name}
+              </Text>
+              {!!req && (
+                <Text style={styles.dailyReq} numberOfLines={2}>{req}</Text>
+              )}
+            </View>
           </View>
-        ))}
-      </View>
+        );
+      })}
     </Card>
   );
 }
@@ -379,6 +426,9 @@ export default function FractalsScreen() {
             <Text style={styles.dailyHint}>Resets daily at 00:00 UTC</Text>
           </Card>
 
+          {/* Daily Fractal Achievements */}
+          <FractalDailiesCard />
+
           {/* Mastery Points */}
           <Text style={styles.regionHeader}>🎓 Mastery Progress</Text>
           {mastLoading ? (
@@ -416,10 +466,12 @@ export default function FractalsScreen() {
 
       {activeTab === 'builds' && (
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-          <Text style={styles.tabSectionHeader}>📖 Recommended Fractal Builds</Text>
-          <Text style={styles.tabSectionHint}>Meta builds for CM and T4 fractal content</Text>
-          {FRACTAL_BUILDS.map((build, i) => (
-            <BuildCard key={i} build={build} />
+          <Text style={styles.tabSectionHeader}>📖 Fractal Build Resources</Text>
+          <Text style={styles.tabSectionHint}>
+            Fractal meta builds change with every balance patch. Check these community sites for up-to-date builds, rotations, and benchmarks.
+          </Text>
+          {FRACTAL_BUILD_SOURCES.map(source => (
+            <BuildSourceCard key={source.name} source={source} />
           ))}
         </ScrollView>
       )}
@@ -462,14 +514,17 @@ const styles = StyleSheet.create({
   tierPipLabel: {fontSize: fontSize.sm, fontWeight: '700'},
   tierPipRange: {fontSize: fontSize.xs, marginTop: 2},
 
+  sectionHeaderRow: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm},
+
   // Daily rows
   dailyRow: {flexDirection: 'row', alignItems: 'flex-start', paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.sm},
   dailyRowDone: {opacity: 0.5},
   dailyDot: {fontSize: 16, marginTop: 1},
   dailyName: {fontSize: fontSize.sm, color: colors.text, flex: 1},
   dailyNameDone: {textDecorationLine: 'line-through'},
+  dailyReq: {fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2},
   dailyProgressRow: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: 4},
-  dailyCount: {fontSize: fontSize.xs, color: colors.textMuted, minWidth: 32, textAlign: 'right'},
+  dailyCount: {fontSize: fontSize.sm, fontWeight: '700', minWidth: 32, textAlign: 'right'},
   dailyHint: {fontSize: fontSize.xs, color: colors.textMuted, marginTop: spacing.sm},
 
   // Stat rows
@@ -516,15 +571,7 @@ const styles = StyleSheet.create({
 
   // Builds
   buildCard: {marginBottom: spacing.sm},
-  buildHeader: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm},
-  roleBadge: {paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.sm, borderWidth: 1},
-  roleBadgeText: {fontSize: fontSize.xs, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5},
-  buildSpec: {fontSize: fontSize.md, color: colors.text, fontWeight: '700', flex: 1},
-  buildDescription: {fontSize: fontSize.sm, color: colors.textMuted, lineHeight: 18, marginBottom: spacing.sm},
-  buildDetail: {flexDirection: 'row', gap: spacing.sm, marginBottom: 4},
-  buildDetailLabel: {fontSize: fontSize.xs, color: colors.textMuted, fontWeight: '700', minWidth: 52, textTransform: 'uppercase'},
-  buildDetailValue: {fontSize: fontSize.xs, color: colors.text, flex: 1},
-  buildTraits: {flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.sm},
-  traitChip: {paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border},
-  traitChipText: {fontSize: fontSize.xs, color: colors.textMuted},
+  buildSpec: {fontSize: fontSize.md, color: colors.text, fontWeight: '700', marginBottom: spacing.xs},
+  buildDescription: {fontSize: fontSize.sm, color: colors.textMuted, lineHeight: 18, marginBottom: spacing.xs},
+  buildUrl: {fontSize: fontSize.xs, color: colors.blue, fontWeight: '600'},
 });

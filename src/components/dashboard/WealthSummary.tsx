@@ -11,8 +11,14 @@ import {
   useItemPrices,
 } from '../../hooks/useGW2';
 import {useAppStore} from '../../store/appStore';
-import {CURRENCY_IDS} from '../../api/account';
+import {CURRENCY_IDS, Wallet} from '../../api/account';
+import {InventorySlot, Price} from '../../types';
 import {colors, fontSize, spacing, radius} from '../../constants/theme';
+
+// GW2 bank API returns null for empty slots — InventorySlot | null
+type BankSlot = InventorySlot | null;
+// Material storage entries always have id and count
+interface MaterialSlot { id: number; count: number; }
 
 export default function WealthSummary() {
   const {settings} = useAppStore();
@@ -23,14 +29,15 @@ export default function WealthSummary() {
   const allRawItems = useMemo(() => {
     const items: {id: number; count: number}[] = [];
     if (bank) {
-      bank
-        .filter((i: any) => i?.id)
-        .forEach((i: any) => items.push({id: i.id, count: i.count ?? 1}));
+      // Bank slots can be null (empty slots) — filter those out
+      (bank as BankSlot[])
+        .filter((slot): slot is InventorySlot => slot !== null && slot.id != null)
+        .forEach(slot => items.push({id: slot.id, count: slot.count ?? 1}));
     }
     if (materials) {
-      materials
-        .filter((i: any) => i?.id && i?.count > 0)
-        .forEach((i: any) => items.push({id: i.id, count: i.count ?? 1}));
+      (materials as MaterialSlot[])
+        .filter(slot => slot?.id != null && slot.count > 0)
+        .forEach(slot => items.push({id: slot.id, count: slot.count}));
     }
     return items;
   }, [bank, materials]);
@@ -43,18 +50,19 @@ export default function WealthSummary() {
 
   const priceMap = useMemo(() => {
     const map = new Map<number, number>();
-    prices?.forEach((p: any) => map.set(p.id, p.sells?.unit_price ?? 0));
+    (prices as Price[] | undefined)?.forEach(p => map.set(p.id, p.sells?.unit_price ?? 0));
     return map;
   }, [prices]);
 
-  const walletGold =
-    wallet?.find((w: any) => w.id === CURRENCY_IDS.GOLD)?.value ?? 0;
-  const karma =
-    wallet?.find((w: any) => w.id === CURRENCY_IDS.KARMA)?.value ?? 0;
-  const laurels =
-    wallet?.find((w: any) => w.id === CURRENCY_IDS.LAURELS)?.value ?? 0;
-  const astralAcclaim =
-    wallet?.find((w: any) => w.id === CURRENCY_IDS.ASTRAL_ACCLAIM)?.value ?? 0;
+  const w = (id: number) => (wallet as Wallet[] | undefined)?.find(c => c.id === id)?.value ?? 0;
+  const walletGold           = w(CURRENCY_IDS.GOLD);
+  const karma                = w(CURRENCY_IDS.KARMA);
+  const laurels              = w(CURRENCY_IDS.LAURELS);
+  const gems                 = w(CURRENCY_IDS.GEMS);
+  const spiritShards         = w(CURRENCY_IDS.SPIRIT_SHARDS);
+  const transmutationCharges = w(CURRENCY_IDS.TRANSMUTATION_CHARGES);
+  const researchNotes        = w(CURRENCY_IDS.RESEARCH_NOTES);
+  const astralAcclaim        = w(CURRENCY_IDS.ASTRAL_ACCLAIM);
 
   const bankValue = useMemo(
     () =>
@@ -103,18 +111,20 @@ export default function WealthSummary() {
           <View style={styles.divider} />
 
           <View style={styles.currencies}>
-            <View style={styles.currencyChip}>
-              <Text style={styles.currencyValue}>{karma.toLocaleString()}</Text>
-              <Text style={styles.currencyLabel}>Karma</Text>
-            </View>
-            <View style={styles.currencyChip}>
-              <Text style={styles.currencyValue}>{laurels}</Text>
-              <Text style={styles.currencyLabel}>Laurels</Text>
-            </View>
-            <View style={styles.currencyChip}>
-              <Text style={styles.currencyValue}>{astralAcclaim}</Text>
-              <Text style={styles.currencyLabel}>Astral ✦</Text>
-            </View>
+            {[
+              {label: 'Karma',      value: karma.toLocaleString()},
+              {label: 'Laurels',    value: laurels.toLocaleString()},
+              {label: 'Gems',       value: gems.toLocaleString()},
+              {label: 'Spirit ✦',   value: spiritShards.toLocaleString()},
+              {label: 'Transmute',  value: transmutationCharges.toLocaleString()},
+              {label: 'Research',   value: researchNotes.toLocaleString()},
+              {label: 'Astral ✦',   value: astralAcclaim.toLocaleString()},
+            ].map(({label, value}) => (
+              <View key={label} style={styles.currencyChip}>
+                <Text style={styles.currencyValue}>{value}</Text>
+                <Text style={styles.currencyLabel}>{label}</Text>
+              </View>
+            ))}
           </View>
         </>
       )}
@@ -165,10 +175,12 @@ const styles = StyleSheet.create({
   },
   currencies: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.sm,
   },
   currencyChip: {
-    flex: 1,
+    width: '30%',
+    flexGrow: 1,
     backgroundColor: colors.bg,
     borderRadius: radius.md,
     borderWidth: 1,

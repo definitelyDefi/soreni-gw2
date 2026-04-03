@@ -116,6 +116,34 @@ export function getSyntheticItemInfo(itemId: number): {name: string; wikiSlug: s
   return undefined;
 }
 
+// ─── Wizard's Vault Starter Pack helper ──────────────────────────────────────
+
+export interface StarterPackItem {
+  itemId: number;
+  name: string;
+  category: 'Precursor' | 'Weapon Gift' | 'Gift of Fortune';
+}
+
+/**
+ * Returns the items included in the Wizard's Vault Legendary Starter Pack
+ * for a given Gen 1 legendary weapon ID.
+ * Pack contains: precursor weapon + weapon-specific gift + Gift of Might OR Gift of Magic.
+ * Returns null if the legendary ID is not a Gen 1 weapon.
+ */
+export function getGen1StarterPackItems(legendaryItemId: number): StarterPackItem[] | null {
+  const precursor = GEN1_PRECURSORS[legendaryItemId];
+  const giftId = WEAPON_GIFT_IDS[legendaryItemId];
+  const giftInfo = WEAPON_GIFT_INFO[legendaryItemId];
+  if (!precursor || !giftId || !giftInfo) return null;
+
+  return [
+    {itemId: precursor.id,  name: precursor.name, category: 'Precursor'},
+    {itemId: giftId,        name: giftInfo.name,  category: 'Weapon Gift'},
+    {itemId: GW2_LEGENDARY_ITEM_IDS.GIFT_OF_MIGHT, name: 'Gift of Might', category: 'Gift of Fortune'},
+    {itemId: GW2_LEGENDARY_ITEM_IDS.GIFT_OF_MAGIC, name: 'Gift of Magic', category: 'Gift of Fortune'},
+  ];
+}
+
 // ─── Gen 1 precursor data ─────────────────────────────────────────────────────
 
 interface PrecursorInfo {

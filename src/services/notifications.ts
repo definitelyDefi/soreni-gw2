@@ -4,7 +4,9 @@ import notifee, {
   TriggerType,
   TimestampTrigger,
   RepeatFrequency,
+  AlarmType,
 } from '@notifee/react-native';
+import {Platform, Linking} from 'react-native';
 import {WORLD_BOSSES, META_EVENTS} from '../constants/worldBosses';
 import {useAppStore} from '../store/appStore';
 
@@ -21,9 +23,31 @@ export async function createNotificationChannel() {
   });
 }
 
+/** Read the current OS permission state without prompting the user. */
+export async function checkNotificationPermission(): Promise<boolean> {
+  try {
+    const settings = await notifee.getNotificationSettings();
+    return (settings.authorizationStatus ?? 0) >= 1;
+  } catch {
+    return false;
+  }
+}
+
 export async function requestNotificationPermission(): Promise<boolean> {
   const settings = await notifee.requestPermission();
-  return settings.authorizationStatus >= 1;
+  if (settings.authorizationStatus < 1) return false;
+
+  // On Android 12+ we need exact alarm permission or notifications batch into
+  // Doze maintenance windows (~4h). Prompt the user to grant it.
+  if (Platform.OS === 'android' && Platform.Version >= 31) {
+    const hasExact = await notifee.getNotificationSettings();
+    if ((hasExact as any)?.android?.alarm === false) {
+      // Open the exact alarm permission settings screen
+      await Linking.openSettings();
+    }
+  }
+
+  return true;
 }
 
 export async function cancelAllNotifications() {
@@ -66,6 +90,11 @@ export async function scheduleAllBossNotifications() {
         type: TriggerType.TIMESTAMP,
         timestamp: triggerTimestamp,
         repeatFrequency: RepeatFrequency.DAILY,
+        alarmManager: {
+          // SET_ALARM_CLOCK bypasses Doze mode — fires exactly on time
+          // even when the device is idle. Requires SCHEDULE_EXACT_ALARM.
+          type: AlarmType.SET_ALARM_CLOCK,
+        },
       };
 
       scheduled.push(

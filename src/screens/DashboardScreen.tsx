@@ -7,17 +7,36 @@ import ResetCountdown from '../components/dashboard/ResetCountdown';
 import NextBossWidget from '../components/dashboard/NextBossWidget';
 import DailyChecklist from '../components/dashboard/DailyChecklist';
 import WalletHistory from '../components/dashboard/WalletHistory';
+import WealthSummary from '../components/dashboard/WealthSummary';
+import WizardVaultWidget from '../components/dashboard/WizardVaultWidget';
+import CharactersWidget from '../components/dashboard/CharactersWidget';
+import MasteryWidget from '../components/dashboard/MasteryWidget';
+import TPDeliveryWidget from '../components/dashboard/TPDeliveryWidget';
 import {colors, spacing} from '../constants/theme';
+import type {WidgetId} from '../types';
+
+const WIDGET_COMPONENTS: Record<WidgetId, React.ComponentType> = {
+  account:         AccountSummary,
+  wealth:          WealthSummary,
+  reset_countdown: ResetCountdown,
+  next_boss:       NextBossWidget,
+  daily_checklist: DailyChecklist,
+  wizard_vault:    WizardVaultWidget,
+  characters:      CharactersWidget,
+  mastery:         MasteryWidget,
+  tp_delivery:     TPDeliveryWidget,
+  wallet_history:  WalletHistory,
+};
 
 export default function DashboardScreen() {
-  const {loadSettings} = useAppStore();
+  const {loadSettings, settings} = useAppStore();
   const queryClient = useQueryClient();
   const isFetching = useIsFetching();
 
   useEffect(() => {
     loadSettings().then(() => {
-      const {settings} = useAppStore.getState();
-      if (settings.notifications) {
+      const {settings: s} = useAppStore.getState();
+      if (s.notifications) {
         import('../services/notifications').then(
           ({scheduleAllBossNotifications}) => {
             scheduleAllBossNotifications();
@@ -31,6 +50,8 @@ export default function DashboardScreen() {
     queryClient.invalidateQueries();
   }
 
+  const widgetIds = settings.dashboardWidgets ?? [];
+
   return (
     <ScrollView
       style={styles.container}
@@ -42,11 +63,11 @@ export default function DashboardScreen() {
           tintColor={colors.gold}
         />
       }>
-      <AccountSummary />
-      <WalletHistory />
-      <ResetCountdown />
-      <NextBossWidget />
-      <DailyChecklist />
+      {widgetIds.map(id => {
+        const Component = WIDGET_COMPONENTS[id];
+        if (!Component) return null;
+        return <Component key={id} />;
+      })}
     </ScrollView>
   );
 }

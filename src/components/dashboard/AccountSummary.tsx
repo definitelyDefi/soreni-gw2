@@ -6,6 +6,7 @@ import {Skeleton, SkeletonCard} from '../ui/Skeleton';
 import ErrorMessage from '../ui/ErrorMessage';
 import {
   useAccount,
+  useAccountAP,
   useWallet,
   useBank,
   useMaterials,
@@ -29,6 +30,7 @@ export default function AccountSummary() {
   const {data: bank, isLoading: bankLoading} = useBank();
   const {data: materials, isLoading: materialsLoading} = useMaterials();
   const {data: pvp} = usePvpStats();
+  const {data: totalAP, isLoading: apLoading} = useAccountAP();
 
   const allRawItems = useMemo(() => {
     const items: {id: number; count: number}[] = [];
@@ -100,7 +102,7 @@ export default function AccountSummary() {
     return null;
   }
 
-  const ap = account.daily_ap + account.monthly_ap;
+  const ap = totalAP ?? (account.daily_ap + account.monthly_ap);
   const playtimeHours = Math.floor(account.age / 3600);
   const playtimeDisplay = playtimeHours >= 1000
     ? `${(playtimeHours / 1000).toFixed(1)}k`
@@ -112,7 +114,9 @@ export default function AccountSummary() {
 
       <View style={styles.statsRow}>
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{ap.toLocaleString()}</Text>
+          <Text style={styles.statValue}>
+            {apLoading && !totalAP ? '…' : ap.toLocaleString()}
+          </Text>
           <Text style={styles.statLabel}>AP</Text>
         </View>
         <View style={styles.statDivider} />

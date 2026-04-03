@@ -1,6 +1,6 @@
 import {useQuery} from '@tanstack/react-query';
-import {getAccount, getWallet, getPvpStats, getWizardVaultDaily, getWizardVaultWeekly, getRaids, getDungeons, getStrikeMissions, getHomeNodes, getMountSkins, getAccountGliders, getAccountTitles, getAccountEmotes, getGemsForCoins, getCoinsForGems} from '../api/account';
-import {getDailyAchievements, getAllMasteries, getAccountMasteries} from '../api/fractals';
+import {getAccount, getWallet, getPvpStats, getTotalAP, getMasteryRank, getWizardVaultDaily, getWizardVaultWeekly, getRaids, getDungeons, getStrikeMissions, getHomeNodes, getMountSkins, getAccountGliders, getAccountTitles, getAccountEmotes, getGemsForCoins, getCoinsForGems} from '../api/account';
+import {getDailyAchievements, getWeeklyAchievements, getAllMasteries, getAccountMasteries} from '../api/fractals';
 import {getGuild, getGuildTreasury, getGuildLog, getGuildMembers} from '../api/guild';
 import {getAllCharacters, getCharacter, getCharacterInventory, getCharacterEquipmentTabs, getCharacterBuildTabs} from '../api/characters';
 import {getItems, getPrices, getBankContents, getMaterials} from '../api/items';
@@ -25,6 +25,17 @@ export function useLegendaryPlan(itemIds: number[]) {
 export function useAccount() {
   const apiKey = useAppStore(s => s.settings.apiKey);
   return useQuery({queryKey: ['account'], queryFn: getAccount, enabled: !!apiKey, staleTime: 5*60*1000});
+}
+
+export function useAccountAP() {
+  const apiKey = useAppStore(s => s.settings.apiKey);
+  // AP changes rarely — cache for 30 minutes. The calculation is expensive (~5-10 API calls).
+  return useQuery({queryKey: ['account_ap'], queryFn: getTotalAP, enabled: !!apiKey, staleTime: 30*60*1000});
+}
+
+export function useMasteryRank() {
+  const apiKey = useAppStore(s => s.settings.apiKey);
+  return useQuery({queryKey: ['mastery_rank'], queryFn: getMasteryRank, enabled: !!apiKey, staleTime: 5*60*1000});
 }
 
 export function useWallet() {
@@ -127,6 +138,10 @@ export function useAccountAchievements() {
 
 export function useDailyAchievements() {
   return useQuery({queryKey: ['daily_achievements'], queryFn: getDailyAchievements, staleTime: 10*60*1000});
+}
+
+export function useWeeklyAchievements() {
+  return useQuery({queryKey: ['weekly_achievements'], queryFn: getWeeklyAchievements, staleTime: 10*60*1000});
 }
 
 export function useMasteries() {

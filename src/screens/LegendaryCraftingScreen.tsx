@@ -22,6 +22,8 @@ import {colors, fontSize, spacing, radius} from '../constants/theme';
 import {LEGENDARIES_DEDUPED} from '../data/legendaries';
 import {FARMING_TIPS} from '../data/timegates';
 import type {FlatMaterial, RecipeNode, LegendaryPlan} from '../api/legendary';
+import {getGen1StarterPackItems, GW2_LEGENDARY_ITEM_IDS} from '../data/legendaryRecipes';
+import type {StarterPackItem} from '../data/legendaryRecipes';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -197,6 +199,117 @@ function MaterialModal({
   );
 }
 
+// ─── Effective missing (real inventory + manually marked owned) ───────────────
+
+function effectiveMissing(mat: FlatMaterial, manualOwned: Map<number, number>): number {
+  return Math.max(0, mat.needed - mat.haveTotal - (manualOwned.get(mat.itemId) ?? 0));
+}
+
+// ─── Wizard's Vault Starter Pack panel ───────────────────────────────────────
+
+function StarterPackPanel({
+  plans,
+  manualOwned,
+  onToggle,
+}: {
+  plans: LegendaryPlan[];
+  manualOwned: Map<number, number>;
+  onToggle: (itemId: number) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  // Build de-duped list of starter items across all selected Gen 1 legendaries
+  const starterItems = useMemo((): (StarterPackItem & {forLegendary: string})[] => {
+    const result: (StarterPackItem & {forLegendary: string})[] = [];
+    const seenIds = new Set<number>();
+
+    for (const plan of plans) {
+      const entry = LEGENDARIES_DEDUPED.find(l => l.id === plan.legendaryItemId);
+      if (entry?.generation !== 1) continue;
+
+      const items = getGen1StarterPackItems(plan.legendaryItemId);
+      if (!items) continue;
+
+      for (const item of items) {
+        if (seenIds.has(item.itemId)) continue;
+        seenIds.add(item.itemId);
+        // Gift of Might/Magic are shared across legendaries — don't attach a single legendary name
+        const isShared = item.category === 'Gift of Fortune';
+        result.push({...item, forLegendary: isShared ? '' : plan.legendaryName});
+      }
+    }
+    return result;
+  }, [plans]);
+
+  if (starterItems.length === 0) return null;
+
+  const ownedCount = starterItems.filter(i => (manualOwned.get(i.itemId) ?? 0) > 0).length;
+
+  const CATEGORY_COLORS: Record<StarterPackItem['category'], string> = {
+    'Precursor':       '#ce93d8',
+    'Weapon Gift':     '#4fc3f7',
+    'Gift of Fortune': '#ffcc02',
+  };
+
+  return (
+    <Card style={styles.starterCard}>
+      <TouchableOpacity
+        style={styles.starterHeader}
+        onPress={() => setExpanded(e => !e)}
+        activeOpacity={0.75}>
+        <Text style={styles.starterTitle}>🎁 Wizard's Vault Starter Pack</Text>
+        <View style={styles.starterHeaderRight}>
+          {ownedCount > 0 && (
+            <View style={styles.starterBadge}>
+              <Text style={styles.starterBadgeTxt}>{ownedCount}/{starterItems.length} owned</Text>
+            </View>
+          )}
+          <Text style={styles.starterArrow}>{expanded ? '▲' : '▼'}</Text>
+        </View>
+      </TouchableOpacity>
+
+      {expanded && (
+        <View style={styles.starterBody}>
+          <Text style={styles.starterHint}>
+            Mark items received from the Starter Pack — they'll be removed from your shopping list.
+          </Text>
+          {starterItems.map(item => {
+            const owned = (manualOwned.get(item.itemId) ?? 0) > 0;
+            const catColor = CATEGORY_COLORS[item.category];
+            return (
+              <TouchableOpacity
+                key={item.itemId}
+                style={[styles.starterItem, owned && styles.starterItemOwned]}
+                onPress={() => onToggle(item.itemId)}
+                activeOpacity={0.75}>
+                <View style={[styles.starterCheckbox, owned && {backgroundColor: colors.green, borderColor: colors.green}]}>
+                  {owned && <Text style={styles.starterCheckmark}>✓</Text>}
+                </View>
+                <View style={{flex: 1}}>
+                  <Text style={[styles.starterItemName, owned && styles.starterItemNameOwned]}>
+                    {item.name}
+                  </Text>
+                  <View style={styles.starterItemMeta}>
+                    <View style={[styles.starterCatBadge, {borderColor: catColor}]}>
+                      <Text style={[styles.starterCatTxt, {color: catColor}]}>{item.category}</Text>
+                    </View>
+                    {item.forLegendary ? (
+                      <Text style={styles.starterForLeg} numberOfLines={1}>{item.forLegendary}</Text>
+                    ) : null}
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+          <Text style={styles.starterNote}>
+            💡 The pack gives your choice of Gift of Might OR Gift of Magic — mark whichever one you received.
+          </Text>
+        </View>
+      )}
+    </Card>
+  );
+}
+
 // ─── Shopping List ────────────────────────────────────────────────────────────
 
 function SubItemRow({node, inventory}: {node: RecipeNode; inventory: Map<number, number>}) {
@@ -219,15 +332,18 @@ function SubItemRow({node, inventory}: {node: RecipeNode; inventory: Map<number,
   );
 }
 
-function MatRow({mat, onPressMat, inventory}: {
+function MatRow({mat, onPressMat, inventory, manualOwned}: {
   mat: FlatMaterial;
   onPressMat: (mat: FlatMaterial) => void;
   inventory: Map<number, number>;
+  manualOwned: Map<number, number>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const hasChildren = !!mat.recipeChildren?.length;
-  const pct = havePercent(mat.haveTotal, mat.needed);
-  const statusColor = mat.missing === 0 ? colors.green : mat.haveTotal > 0 ? colors.gold : colors.red;
+  const effMissing = effectiveMissing(mat, manualOwned);
+  const effHave = mat.haveTotal + (manualOwned.get(mat.itemId) ?? 0);
+  const pct = havePercent(effHave, mat.needed);
+  const statusColor = effMissing === 0 ? colors.green : effHave > 0 ? colors.gold : colors.red;
   return (
     <View>
       <TouchableOpacity
@@ -257,10 +373,10 @@ function MatRow({mat, onPressMat, inventory}: {
         </View>
         <View style={styles.matRowRight}>
           <Text style={[styles.matRowStatus, {color: statusColor}]}>
-            {mat.haveTotal.toLocaleString()}/{mat.needed.toLocaleString()}
+            {effHave.toLocaleString()}/{mat.needed.toLocaleString()}
           </Text>
-          {mat.missing > 0 && mat.tpBuyPrice > 0 && (
-            <Text style={styles.matRowCost}>{copperToGold(mat.totalBuyCost)}</Text>
+          {effMissing > 0 && mat.tpBuyPrice > 0 && (
+            <Text style={styles.matRowCost}>{copperToGold(effMissing * mat.tpBuyPrice)}</Text>
           )}
           <View style={styles.matRowBar}>
             <View style={[styles.matRowBarFill, {width: `${pct}%` as any, backgroundColor: statusColor}]} />
@@ -281,10 +397,12 @@ function ShoppingList({
   materials,
   onPressMat,
   inventory,
+  manualOwned,
 }: {
   materials: FlatMaterial[];
   onPressMat: (mat: FlatMaterial) => void;
   inventory: Map<number, number>;
+  manualOwned: Map<number, number>;
 }) {
   const [search, setSearch] = useState('');
 
@@ -292,14 +410,14 @@ function ShoppingList({
     const q = search.trim().toLowerCase();
     const all = q ? materials.filter(m => m.name.toLowerCase().includes(q)) : materials;
     return {
-      missing: all.filter(m => m.missing > 0),
-      have: all.filter(m => m.missing === 0),
+      missing: all.filter(m => effectiveMissing(m, manualOwned) > 0),
+      have: all.filter(m => effectiveMissing(m, manualOwned) === 0),
     };
-  }, [materials, search]);
+  }, [materials, search, manualOwned]);
 
   const totalCost = missing
     .filter(m => !m.isTimegated && !m.specialInfo)
-    .reduce((s, m) => s + m.totalBuyCost, 0);
+    .reduce((s, m) => s + effectiveMissing(m, manualOwned) * m.tpBuyPrice, 0);
 
   const sections = useMemo(() => {
     const out = [];
@@ -351,7 +469,7 @@ function ShoppingList({
             </Text>
           </View>
         )}
-        renderItem={({item}) => <MatRow mat={item} onPressMat={onPressMat} inventory={inventory} />}
+        renderItem={({item}) => <MatRow mat={item} onPressMat={onPressMat} inventory={inventory} manualOwned={manualOwned} />}
         SectionSeparatorComponent={() => <View style={{height: spacing.xs}} />}
       />
     </View>
@@ -659,6 +777,19 @@ function PlanView({itemIds}: {itemIds: number[]}) {
   const [selectedMat, setSelectedMat] = useState<FlatMaterial | null>(null);
   const [treePlanIdx, setTreePlanIdx] = useState(0);
   const safeTreeIdx = data ? Math.min(treePlanIdx, data.plans.length - 1) : 0;
+  const [manualOwned, setManualOwned] = useState<Map<number, number>>(new Map());
+
+  const handleToggleManualOwned = useCallback((itemId: number) => {
+    setManualOwned(prev => {
+      const next = new Map(prev);
+      if ((next.get(itemId) ?? 0) > 0) {
+        next.delete(itemId);
+      } else {
+        next.set(itemId, 1);
+      }
+      return next;
+    });
+  }, []);
 
   const handlePressMat = useCallback((mat: FlatMaterial) => {
     setSelectedMat(mat);
@@ -717,7 +848,19 @@ function PlanView({itemIds}: {itemIds: number[]}) {
       </ScrollView>
 
       {planTab === 'shopping' && (
-        <ShoppingList materials={combined} onPressMat={handlePressMat} inventory={inventory} />
+        <View style={{flex: 1}}>
+          <StarterPackPanel
+            plans={plans}
+            manualOwned={manualOwned}
+            onToggle={handleToggleManualOwned}
+          />
+          <ShoppingList
+            materials={combined}
+            onPressMat={handlePressMat}
+            inventory={inventory}
+            manualOwned={manualOwned}
+          />
+        </View>
       )}
       {planTab === 'tree' && plans.length > 0 && (
         <View style={{flex: 1}}>
@@ -1358,4 +1501,130 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   wikiBtnTxt: {color: colors.gold, fontSize: fontSize.sm, fontWeight: '700'},
+
+  // starter pack panel
+  starterCard: {
+    margin: spacing.sm,
+    marginBottom: 0,
+    padding: 0,
+    overflow: 'hidden',
+  },
+  starterHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  starterTitle: {
+    color: colors.gold,
+    fontSize: fontSize.sm,
+    fontWeight: '800',
+  },
+  starterHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  starterBadge: {
+    backgroundColor: colors.green + '22',
+    borderWidth: 1,
+    borderColor: colors.green + '66',
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  starterBadgeTxt: {
+    color: colors.green,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  starterArrow: {
+    color: colors.textMuted,
+    fontSize: fontSize.xs,
+    fontWeight: '800',
+    marginLeft: spacing.xs,
+  },
+  starterBody: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+    gap: spacing.xs,
+  },
+  starterHint: {
+    color: colors.textMuted,
+    fontSize: fontSize.xs,
+    lineHeight: 18,
+    paddingVertical: spacing.xs,
+  },
+  starterItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bg,
+  },
+  starterItemOwned: {
+    borderColor: colors.green + '55',
+    backgroundColor: colors.green + '0A',
+  },
+  starterCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  starterCheckmark: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  starterItemName: {
+    color: colors.text,
+    fontSize: fontSize.sm,
+    fontWeight: '600',
+  },
+  starterItemNameOwned: {
+    color: colors.textMuted,
+  },
+  starterItemMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: 3,
+    flexWrap: 'wrap',
+  },
+  starterCatBadge: {
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  starterCatTxt: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  starterForLeg: {
+    color: colors.textMuted,
+    fontSize: 10,
+    flex: 1,
+  },
+  starterNote: {
+    color: colors.textMuted,
+    fontSize: fontSize.xs,
+    lineHeight: 18,
+    paddingTop: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    marginTop: spacing.xs,
+  },
 });

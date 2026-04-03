@@ -10,6 +10,17 @@ export interface DailyAchievements {
   pvp: {id: number}[];
   wvw: {id: number}[];
   fractals: DailyFractalAchievement[];
+  special?: {id: number}[];
+}
+
+export interface WeeklyAchievements {
+  pve: {id: number}[];
+  pvp: {id: number}[];
+  wvw: {id: number}[];
+  fractals: {id: number}[];
+  end_of_dragons?: {id: number}[];
+  secrets_of_the_obscure?: {id: number}[];
+  janthir_wilds?: {id: number}[];
 }
 
 export interface AchievementDef {
@@ -57,10 +68,8 @@ export interface AccountMastery {
   level: number;
 }
 
-export async function getDailyAchievements(): Promise<DailyAchievements> {
-  const res = await gw2Api.get('/achievements/daily');
-  return res.data;
-}
+// /achievements/daily and /achievements/weekly were deprecated by ArenaNet
+// when the Wizard's Vault replaced the old daily/weekly system.
 
 export async function getAchievementDefs(ids: number[]): Promise<AchievementDef[]> {
   if (ids.length === 0) {return [];}
